@@ -6,7 +6,7 @@ const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000; // Vercel uses 3000
 
 // Middleware
 app.use(cors({
@@ -20,7 +20,7 @@ const db = require('./config/db');
 
 // Test route
 app.get('/', (req, res) => {
-    res.json({ message: 'TechLinker API is running!' });
+    res.json({ message: 'TechLinker API is running on Vercel!' });
 });
 
 // Health check route
@@ -32,10 +32,10 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Test database route
+// Test database route - FIXED
 app.get('/test-db', async (req, res) => {
     try {
-        const [results] = await db.execute('SELECT 1 + 1 AS solution');
+        const [results] = await db.pool.execute('SELECT 1 + 1 AS solution');
         res.json({ 
             message: 'Database connection successful!', 
             data: results[0] 
@@ -51,15 +51,15 @@ app.get('/test-db', async (req, res) => {
 
 // ========== AUTH ROUTES ==========
 
-// User registration with email verification
+// User registration with email verification - ALL FIXED
 app.post('/api/auth/register', async (req, res) => {
     let connection;
     try {
         const { fullname, email, password, user_type } = req.body;
         console.log('📝 Registration attempt:', { fullname, email, user_type });
         
-        // Check if user exists
-        const [existing] = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
+        // Check if user exists - FIXED
+        const [existing] = await db.pool.execute('SELECT * FROM users WHERE email = ?', [email]);
         if (existing.length > 0) {
             return res.status(400).json({ error: 'User already exists with this email' });
         }
@@ -68,7 +68,7 @@ app.post('/api/auth/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         
         // Use transaction to ensure both user and token are saved
-        connection = await db.getConnection();
+        connection = await db.pool.getConnection();
         await connection.beginTransaction();
 
         console.log('🔄 Starting transaction...');
@@ -141,14 +141,14 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-// User login
+// User login - FIXED
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         console.log('🔑 Login attempt:', email);
         
-        // Find user
-        const [users] = await db.execute(
+        // Find user - FIXED
+        const [users] = await db.pool.execute(
             'SELECT id, fullname, email, password, user_type, email_verified, profile_completed FROM users WHERE email = ?', 
             [email]
         );
@@ -195,15 +195,15 @@ app.post('/api/auth/login', async (req, res) => {
 
 // ========== EMAIL VERIFICATION ROUTES ==========
 
-// Send verification email
+// Send verification email - FIXED
 app.post('/api/auth/send-verification', async (req, res) => {
     try {
         const { email } = req.body;
         
         console.log('📧 Verification email requested for:', email);
 
-        // Check if user exists
-        const [users] = await db.execute('SELECT id, fullname, email_verified FROM users WHERE email = ?', [email]);
+        // Check if user exists - FIXED
+        const [users] = await db.pool.execute('SELECT id, fullname, email_verified FROM users WHERE email = ?', [email]);
         if (users.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
@@ -221,11 +221,11 @@ app.post('/api/auth/send-verification', async (req, res) => {
         const verificationToken = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-        // Delete any existing tokens for this user
-        await db.execute('DELETE FROM email_verification_tokens WHERE user_id = ?', [user.id]);
+        // Delete any existing tokens for this user - FIXED
+        await db.pool.execute('DELETE FROM email_verification_tokens WHERE user_id = ?', [user.id]);
 
-        // Save new token to database
-        await db.execute(
+        // Save new token to database - FIXED
+        await db.pool.execute(
             'INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
             [user.id, verificationToken, expiresAt]
         );
@@ -253,15 +253,15 @@ app.post('/api/auth/send-verification', async (req, res) => {
     }
 });
 
-// Verify email with token
+// Verify email with token - FIXED
 app.post('/api/auth/verify-email', async (req, res) => {
     let connection;
     try {
         const { token } = req.body;
         console.log('🔐 Email verification attempt for token:', token);
 
-        // Find valid token using UTC time comparison
-        const [tokens] = await db.execute(
+        // Find valid token using UTC time comparison - FIXED
+        const [tokens] = await db.pool.execute(
             `SELECT evt.*, u.id as user_id, u.email, u.fullname 
              FROM email_verification_tokens evt 
              JOIN users u ON evt.user_id = u.id 
@@ -280,7 +280,7 @@ app.post('/api/auth/verify-email', async (req, res) => {
         const verificationToken = tokens[0];
 
         // Mark email as verified and token as used
-        connection = await db.getConnection();
+        connection = await db.pool.getConnection();
         
         try {
             await connection.beginTransaction();
@@ -326,13 +326,13 @@ app.post('/api/auth/verify-email', async (req, res) => {
 
 // ========== PROFILE ROUTES ==========
 
-// Get user profile
+// Get user profile - FIXED
 app.get('/api/profile/:userId', async (req, res) => {
     try {
         const userId = req.params.userId;
         
-        // Get user basic info
-        const [users] = await db.execute(
+        // Get user basic info - FIXED
+        const [users] = await db.pool.execute(
             'SELECT id, fullname, email, user_type, email_verified, profile_completed, bio, location, website, github_url, linkedin_url, hourly_rate, availability FROM users WHERE id = ?', 
             [userId]
         );
@@ -350,7 +350,7 @@ app.get('/api/profile/:userId', async (req, res) => {
     }
 });
 
-// Update user profile
+// Update user profile - FIXED
 app.put('/api/profile/:userId', async (req, res) => {
     try {
         const userId = req.params.userId;
@@ -368,8 +368,8 @@ app.put('/api/profile/:userId', async (req, res) => {
             availability
         });
 
-        // First, check if user exists
-        const [users] = await db.execute('SELECT id FROM users WHERE id = ?', [userId]);
+        // First, check if user exists - FIXED
+        const [users] = await db.pool.execute('SELECT id FROM users WHERE id = ?', [userId]);
         if (users.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
@@ -422,7 +422,7 @@ app.put('/api/profile/:userId', async (req, res) => {
         console.log('🔧 Executing query:', updateQuery);
         console.log('📊 With values:', updateValues);
 
-        const [result] = await db.execute(updateQuery, updateValues);
+        const [result] = await db.pool.execute(updateQuery, updateValues);
         
         console.log('✅ Update result:', result);
 
@@ -442,10 +442,10 @@ app.put('/api/profile/:userId', async (req, res) => {
 
 // ========== SKILLS ROUTES ==========
 
-// Get all available skills
+// Get all available skills - FIXED
 app.get('/api/skills', async (req, res) => {
     try {
-        const [skills] = await db.execute('SELECT * FROM skills ORDER BY name');
+        const [skills] = await db.pool.execute('SELECT * FROM skills ORDER BY name');
         res.json(skills);
     } catch (error) {
         console.error('❌ Skills fetch error:', error);
@@ -454,7 +454,10 @@ app.get('/api/skills', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🔐 JWT Secret: ${process.env.JWT_SECRET ? 'Set' : 'Using fallback'}`);
 });
+
+// EXPORT FOR VERCEL (CRITICAL)
+module.exports = app;
