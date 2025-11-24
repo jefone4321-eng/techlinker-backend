@@ -22,7 +22,7 @@ pool.getConnection()
         console.error('❌ Database connection failed:', err.message);
     });
 
-// Export functions for manual initialization (don't call them automatically)
+// Export functions for manual initialization
 module.exports = {
     pool,
     initializeDatabase: async function() {
